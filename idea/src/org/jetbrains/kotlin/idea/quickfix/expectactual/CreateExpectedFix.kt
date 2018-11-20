@@ -12,6 +12,7 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.psi.codeStyle.CodeStyleManager
+import org.jetbrains.kotlin.builtins.DefaultBuiltIns
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory
@@ -23,15 +24,22 @@ import org.jetbrains.kotlin.idea.core.overrideImplement.*
 import org.jetbrains.kotlin.idea.core.toDescriptor
 import org.jetbrains.kotlin.idea.quickfix.KotlinIntentionActionsFactory
 import org.jetbrains.kotlin.idea.quickfix.KotlinQuickFixAction
+import org.jetbrains.kotlin.idea.refactoring.introduce.showErrorHint
 import org.jetbrains.kotlin.idea.util.application.executeWriteCommand
 import org.jetbrains.kotlin.idea.util.liftToExpected
 import org.jetbrains.kotlin.idea.util.module
+import org.jetbrains.kotlin.js.descriptorUtils.getJetTypeFqName
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
 import org.jetbrains.kotlin.psi.psiUtil.createSmartPointer
 import org.jetbrains.kotlin.psi.psiUtil.hasActualModifier
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.MultiTargetPlatform
+import org.jetbrains.kotlin.resolve.descriptorUtil.module
+import org.jetbrains.kotlin.resolve.getMultiTargetPlatform
+import org.jetbrains.kotlin.types.AbbreviatedType
+import org.jetbrains.kotlin.types.KotlinType
 
 sealed class CreateExpectedFix<out D : KtNamedDeclaration>(
     declaration: D,
@@ -57,7 +65,14 @@ sealed class CreateExpectedFix<out D : KtNamedDeclaration>(
         val targetExpectedClass = targetExpectedClassPointer?.element
         val expectedFile = targetExpectedClass?.containingKtFile ?: getOrCreateImplementationFile() ?: return
         DumbService.getInstance(project).runWhenSmart {
-            val generated = factory.generateIt(project, element) ?: return@runWhenSmart
+            val generated = try {
+                factory.generateIt(project, element) ?: return@runWhenSmart
+            } catch (e: KotlinTypeInaccessibleException) {
+                if (editor != null) {
+                    showErrorHint(project, editor, "Cannot generate expected class", e.message)
+                }
+                return@runWhenSmart
+            }
 
             project.executeWriteCommand("Create expected declaration") {
                 if (expectedFile.packageDirective?.fqName != file.packageDirective?.fqName &&
@@ -237,6 +252,10 @@ private fun generateFunction(
     descriptor: FunctionDescriptor,
     targetClass: KtClassOrObject? = null
 ): KtFunction {
+    descriptor.returnType?.checkAccessibility()
+    descriptor.valueParameters.forEach {
+        it.type.checkAccessibility()
+    }
     val memberChooserObject = OverrideMemberChooserObject.create(
         actualFunction, descriptor, descriptor,
         OverrideMemberChooserObject.BodyType.NO_BODY
@@ -254,6 +273,7 @@ private fun generateProperty(
     descriptor: PropertyDescriptor,
     targetClass: KtClassOrObject? = null
 ): KtProperty {
+    descriptor.type.checkAccessibility()
     val memberChooserObject = OverrideMemberChooserObject.create(
         actualProperty, descriptor, descriptor,
         OverrideMemberChooserObject.BodyType.NO_BODY
@@ -265,6 +285,22 @@ private fun generateProperty(
     } as KtProperty
 }
 
+private fun KotlinType.checkAccessibility() {
+    val expandedType = when (this) {
+        is AbbreviatedType -> this.expandedType
+        else -> this
+    }
+    val classifierDescriptor = expandedType.constructor.declarationDescriptor as? ClassifierDescriptorWithTypeParameters ?: return
+    if (classifierDescriptor.liftToExpected() != null) return
+    val moduleDescriptor = classifierDescriptor.module
+    when {
+        moduleDescriptor.builtIns is DefaultBuiltIns -> return
+        moduleDescriptor.getMultiTargetPlatform() == MultiTargetPlatform.Common -> return
+        else -> throw KotlinTypeInaccessibleException(expandedType)
+    }
+}
 
-
-
+class KotlinTypeInaccessibleException(val type: KotlinType) : Exception() {
+    override val message: String
+        get() = "Type ${type.getJetTypeFqName(true)} is not accessible from common code"
+}
