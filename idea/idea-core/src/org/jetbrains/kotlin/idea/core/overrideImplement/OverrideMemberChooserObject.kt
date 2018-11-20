@@ -234,7 +234,6 @@ private val EXPECT_RENDERER = OVERRIDE_RENDERER.withOptions {
     secondaryConstructorsAsPrimary = false
     renderDefaultVisibility = false
     renderDefaultModality = false
-    renderConstructorDelegation = true
     renderAnnotationPropertiesInPrimaryConstructor = true
     renderTypeExpansions = true
 }
@@ -243,6 +242,7 @@ private val ACTUAL_RENDERER = EXPECT_RENDERER.withOptions {
     modifiers += ACTUAL
     actualPropertiesInPrimaryConstructor = true
     renderTypeExpansions = false
+    renderConstructorDelegation = true
 }
 
 private fun PropertyDescriptor.wrap(forceOverride: Boolean): PropertyDescriptor {
