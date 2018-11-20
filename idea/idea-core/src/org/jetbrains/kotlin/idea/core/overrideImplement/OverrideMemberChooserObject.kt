@@ -179,8 +179,6 @@ private fun OverrideMemberChooserObject.generateMember(
         forceActual -> newMember.addModifier(KtTokens.ACTUAL_KEYWORD)
         forceExpect -> if (targetClass == null) {
             newMember.addModifier(KtTokens.EXPECT_KEYWORD)
-        } else {
-            newMember.makeNotActual()
         }
         targetClass?.hasActualModifier() == true -> {
             val expectClassDescriptors =
@@ -192,9 +190,6 @@ private fun OverrideMemberChooserObject.generateMember(
             ) {
                 newMember.addModifier(KtTokens.ACTUAL_KEYWORD)
             }
-        }
-        else -> {
-            newMember.makeNotActual()
         }
     }
 
@@ -234,8 +229,8 @@ private val OVERRIDE_RENDERER = withOptions {
 }
 
 private val EXPECT_RENDERER = OVERRIDE_RENDERER.withOptions {
-    modifiers = setOf(VISIBILITY, MODALITY, OVERRIDE, INNER, MEMBER_KIND, EXPECT, ACTUAL)
-    renderConstructorKeyword = true
+    modifiers = setOf(VISIBILITY, MODALITY, OVERRIDE, INNER, MEMBER_KIND)
+    renderConstructorKeyword = false
     secondaryConstructorsAsPrimary = false
     renderDefaultVisibility = false
     renderDefaultModality = false
@@ -245,6 +240,7 @@ private val EXPECT_RENDERER = OVERRIDE_RENDERER.withOptions {
 }
 
 private val ACTUAL_RENDERER = EXPECT_RENDERER.withOptions {
+    modifiers += ACTUAL
     actualPropertiesInPrimaryConstructor = true
     renderTypeExpansions = false
 }
