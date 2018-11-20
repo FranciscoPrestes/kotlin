@@ -41,6 +41,8 @@ import org.jetbrains.kotlin.psi.findDocComment.findDocComment
 import org.jetbrains.kotlin.psi.psiUtil.hasActualModifier
 import org.jetbrains.kotlin.psi.psiUtil.hasExpectModifier
 import org.jetbrains.kotlin.renderer.*
+import org.jetbrains.kotlin.renderer.DescriptorRenderer.Companion.withOptions
+import org.jetbrains.kotlin.renderer.DescriptorRendererModifier.*
 import org.jetbrains.kotlin.resolve.checkers.ExperimentalUsageChecker
 import org.jetbrains.kotlin.resolve.descriptorUtil.setSingleOverridden
 import org.jetbrains.kotlin.util.findCallableMemberBySignature
@@ -118,8 +120,8 @@ interface OverrideMemberChooserObject : ClassMember {
 }
 
 fun OverrideMemberChooserObject.generateTopLevelActual(
-    copyDoc: Boolean,
-    project: Project
+    project: Project,
+    copyDoc: Boolean
 ) = generateMember(null, copyDoc, project, forceActual = true, forceExpect = false)
 
 fun OverrideMemberChooserObject.generateActualMember(
@@ -128,8 +130,8 @@ fun OverrideMemberChooserObject.generateActualMember(
 ) = generateMember(targetClass, copyDoc, targetClass.project, forceActual = true, forceExpect = false)
 
 fun OverrideMemberChooserObject.generateTopLevelExpect(
-    copyDoc: Boolean,
-    project: Project
+    project: Project,
+    copyDoc: Boolean
 ) = generateMember(null, copyDoc, project, forceActual = false, forceExpect = true)
 
 fun OverrideMemberChooserObject.generateExpectMember(
@@ -215,9 +217,9 @@ private fun OverrideMemberChooserObject.generateMember(
     return newMember
 }
 
-private val OVERRIDE_RENDERER = DescriptorRenderer.withOptions {
+private val OVERRIDE_RENDERER = withOptions {
     defaultParameterValueRenderer = null
-    modifiers = setOf(DescriptorRendererModifier.OVERRIDE, DescriptorRendererModifier.ANNOTATIONS)
+    modifiers = setOf(OVERRIDE, ANNOTATIONS)
     withDefinedIn = false
     classifierNamePolicy = ClassifierNamePolicy.SOURCE_CODE_QUALIFIED
     overrideRenderingPolicy = OverrideRenderingPolicy.RENDER_OVERRIDE
@@ -232,17 +234,19 @@ private val OVERRIDE_RENDERER = DescriptorRenderer.withOptions {
 }
 
 private val EXPECT_RENDERER = OVERRIDE_RENDERER.withOptions {
-    modifiers = DescriptorRendererModifier.ALL
+    modifiers = setOf(VISIBILITY, MODALITY, OVERRIDE, INNER, MEMBER_KIND, EXPECT, ACTUAL)
     renderConstructorKeyword = true
     secondaryConstructorsAsPrimary = false
     renderDefaultVisibility = false
     renderDefaultModality = false
     renderConstructorDelegation = true
     renderAnnotationPropertiesInPrimaryConstructor = true
+    renderTypeExpansions = true
 }
 
 private val ACTUAL_RENDERER = EXPECT_RENDERER.withOptions {
     actualPropertiesInPrimaryConstructor = true
+    renderTypeExpansions = false
 }
 
 private fun PropertyDescriptor.wrap(forceOverride: Boolean): PropertyDescriptor {

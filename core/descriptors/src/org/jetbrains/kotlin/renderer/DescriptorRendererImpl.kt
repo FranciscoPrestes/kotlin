@@ -129,10 +129,14 @@ internal class DescriptorRendererImpl(
     private fun StringBuilder.renderNormalizedType(type: KotlinType) {
         val abbreviated = type.unwrap() as? AbbreviatedType
         if (abbreviated != null) {
-            // TODO nullability is lost for abbreviated type?
-            renderNormalizedTypeAsIs(abbreviated.abbreviation)
-            if (renderUnabbreviatedType) {
-                renderAbbreviatedTypeExpansion(abbreviated)
+            if (renderTypeExpansions) {
+                renderNormalizedTypeAsIs(abbreviated.expandedType)
+            } else {
+                // TODO nullability is lost for abbreviated type?
+                renderNormalizedTypeAsIs(abbreviated.abbreviation)
+                if (renderUnabbreviatedType) {
+                    renderAbbreviatedTypeExpansion(abbreviated)
+                }
             }
             return
         }
@@ -861,11 +865,11 @@ internal class DescriptorRendererImpl(
             if (!startFromDeclarationKeyword) {
                 renderPropertyAnnotations(property, builder)
                 renderVisibility(property.visibility, builder)
-                renderModifier(builder, property.isConst, "const")
+                renderModifier(builder, DescriptorRendererModifier.CONST in modifiers && property.isConst, "const")
                 renderMemberModifiers(property, builder)
                 renderModalityForCallable(property, builder)
                 renderOverride(property, builder)
-                renderModifier(builder, property.isLateInit, "lateinit")
+                renderModifier(builder, DescriptorRendererModifier.LATEINIT in modifiers && property.isLateInit, "lateinit")
                 renderMemberKind(property, builder)
             }
             renderValVarPrefix(property, builder)
